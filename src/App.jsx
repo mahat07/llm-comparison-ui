@@ -4,22 +4,48 @@ import './App.css';
 function App() {
   const [sharedPrompt, setSharedPrompt] = useState('');
   const [responses, setResponses] = useState({
-    ollama: '',
     anthropic: '',
-    openai: ''
+    deepseek: '',
+    llama: ''
   });
   const [loading, setLoading] = useState({
-    ollama: false,
     anthropic: false,
-    openai: false
+    deepseek: false,
+    llama: false
   });
   const [responseOrder, setResponseOrder] = useState([]);
 
   const models = [
-    { id: 'openai', name: 'OpenAI (GPT-4o)', color: '#2ECC71' },
     { id: 'anthropic', name: 'Anthropic (Claude)', color: '#9B59B6' },
-    { id: 'ollama', name: 'Ollama (Gemma 2)', color: '#E67E22' }
+    { id: 'deepseek', name: 'DeepSeek (R1 Distill Qwen 7B)', color: '#1F618D' },
+    { id: 'llama', name: 'LLaMA (3.2 1B Instruct)', color: '#F39C12' }
   ];
+
+  // 🧠 Formatter Function
+  const formatModelResponse = (raw, model) => {
+    let parsed;
+    try {
+      parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    } catch (e) {
+      return 'Invalid response format';
+    }
+
+    let content = '';
+
+    switch (model) {
+      case 'deepseek':
+      case 'llama':
+        return parsed?.choices?.[0]?.message?.content?.trim() || 'No content found';
+      case 'anthropic':
+        return parsed?.content?.[0]?.text?.trim() || 'No content found';
+      default:
+        return 'Unsupported model format';
+    }
+
+    content = content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+
+    return content || 'No content found';
+  };
 
   const handlePromptChange = useCallback((value) => {
     setSharedPrompt(value);
@@ -28,12 +54,10 @@ function App() {
   const fetchModelResponse = useCallback(async (model, prompt) => {
     try {
       const encodedPrompt = encodeURIComponent(prompt);
-      const response = await fetch(`http://localhost:8080/api/${model}/${encodedPrompt}`);
-      
+      const response = await fetch(`http://localhost:8081/api/${model}/${encodedPrompt}`);
       if (!response.ok) {
         throw new Error(`Error: ${response.status}`);
       }
-      
       const data = await response.text();
       return data;
     } catch (error) {
@@ -43,64 +67,56 @@ function App() {
 
   const handleSubmit = useCallback(async () => {
     if (!sharedPrompt.trim()) return;
-    
-    // Reset the response order
+
     setResponseOrder([]);
-    
-    // Set all models to loading
+
     setLoading({
-      ollama: true,
       anthropic: true,
-      openai: true
+      deepseek: true,
+      llama: true
     });
-    
-    // Initialize all responses as loading
+
     setResponses({
-      ollama: 'Loading...',
       anthropic: 'Loading...',
-      openai: 'Loading...'
+      deepseek: 'Loading...',
+      llama: 'Loading...'
     });
-    
-    // Process each model independently
+
     models.forEach(model => {
       fetchModelResponse(model.id, sharedPrompt)
-        .then(response => {
-          // Update this specific model's response
+        .then(rawResponse => {
+          const formatted = formatModelResponse(rawResponse, model.id);
           setResponses(prev => ({
             ...prev,
-            [model.id]: response
+            [model.id]: formatted
           }));
-          
-          // Add this model to the response order
+
           setResponseOrder(prev => [...prev, model.id]);
-          
-          // Set this model's loading state to false
           setLoading(prev => ({
             ...prev,
             [model.id]: false
           }));
         })
         .catch(error => {
-          // Handle errors for this specific model
           setResponses(prev => ({
             ...prev,
             [model.id]: `Error: ${error.message}`
           }));
-          
+
           setLoading(prev => ({
             ...prev,
             [model.id]: false
           }));
         });
     });
-  }, [sharedPrompt, fetchModelResponse, models]);
+  }, [sharedPrompt, fetchModelResponse]);
 
   const isLoading = Object.values(loading).some(status => status);
-  
+
   return (
     <div className="app-container">
       <h1>Exploring Different LLM Models</h1>
-      
+
       <div className="shared-prompt-container">
         <div className="shared-prompt-area">
           <textarea
@@ -109,8 +125,8 @@ function App() {
             onChange={(e) => handlePromptChange(e.target.value)}
             disabled={isLoading}
           />
-          
-          <button 
+
+          <button
             onClick={handleSubmit}
             disabled={isLoading || !sharedPrompt.trim()}
             className="submit-all-btn"
@@ -119,7 +135,7 @@ function App() {
           </button>
         </div>
       </div>
-      
+
       {responseOrder.length > 0 && (
         <div className="response-order">
           <h3>Response Order:</h3>
@@ -135,15 +151,14 @@ function App() {
           </ol>
         </div>
       )}
-      
+
       <div className="model-grid">
         {models.map(model => (
-          <div 
-            key={model.id} 
+          <div
+            key={model.id}
             className="model-box"
-            style={{ 
+            style={{
               borderColor: model.color,
-              // Highlight the fastest model
               boxShadow: responseOrder[0] === model.id ? `0 0 15px ${model.color}` : 'none'
             }}
           >
@@ -155,7 +170,7 @@ function App() {
                 </span>
               )}
             </h2>
-            
+
             <div className="response-area">
               <h3>Response:</h3>
               <div className="response-content">
