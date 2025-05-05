@@ -24,28 +24,35 @@ function App() {
   // 🧠 Formatter Function
   const formatModelResponse = (raw, model) => {
     let parsed;
+  
     try {
       parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
     } catch (e) {
-      return 'Invalid response format';
+      // If not JSON, treat it as plain text
+      const cleaned = raw.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+      return cleaned || 'Invalid response format';
     }
-
+  
     let content = '';
-
+  
     switch (model) {
       case 'deepseek':
       case 'llama':
-        return parsed?.choices?.[0]?.message?.content?.trim() || 'No content found';
+        content = parsed?.choices?.[0]?.message?.content?.trim() || '';
+        break;
       case 'anthropic':
-        return parsed?.content?.[0]?.text?.trim() || 'No content found';
+        content = parsed?.content?.[0]?.text?.trim() || '';
+        break;
       default:
         return 'Unsupported model format';
     }
-
-    content = content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
-
-    return content || 'No content found';
+  
+    // Clean up <think> tags
+    const cleaned = content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    return cleaned || 'No content found';
   };
+  
+  
 
   const handlePromptChange = useCallback((value) => {
     setSharedPrompt(value);
